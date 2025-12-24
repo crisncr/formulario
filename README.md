@@ -54,3 +54,5 @@ Aplicación web para evaluar proveedores con asignaciones específicas por evalu
 - Para respaldar datos, descarga el Excel regularmente
 - Cada usuario debe usar su propio navegador/dispositivo
 
+
+
