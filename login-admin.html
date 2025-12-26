@@ -127,50 +127,73 @@
             window.location.href = 'admin.html';
         }
         
-        // Esperar a que Supabase esté listo
+        // Esperar a que todos los scripts estén cargados
         async function initLogin() {
+            // Esperar a que Supabase esté listo
             await waitForSupabase();
+            
+            // Verificar que la función esté disponible
+            if (typeof validarPasswordAdmin === 'undefined') {
+                console.error('❌ La función validarPasswordAdmin no está disponible');
+                return;
+            }
+            
             console.log('✅ Login listo para validar contraseña');
+            
+            // Configurar el evento del formulario solo cuando todo esté listo
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const password = document.getElementById('password').value;
+                    const errorMessage = document.getElementById('errorMessage');
+                    const submitButton = e.target.querySelector('button[type="submit"]');
+                    
+                    // Deshabilitar botón mientras se valida
+                    submitButton.disabled = true;
+                    submitButton.textContent = 'Validando...';
+                    errorMessage.style.display = 'none';
+                    
+                    try {
+                        // Verificar nuevamente que la función esté disponible
+                        if (typeof validarPasswordAdmin === 'undefined') {
+                            throw new Error('La función de validación no está disponible. Por favor, recarga la página.');
+                        }
+                        
+                        // Validar contraseña usando la función de Supabase
+                        const esValida = await validarPasswordAdmin(password);
+                        
+                        if (esValida) {
+                            // Guardar autenticación en sessionStorage (se cierra al cerrar la pestaña)
+                            sessionStorage.setItem('adminAuthenticated', 'true');
+                            sessionStorage.setItem('adminAuthTime', Date.now().toString());
+                            window.location.href = 'admin.html';
+                        } else {
+                            errorMessage.textContent = 'Contraseña incorrecta. Intente nuevamente.';
+                            errorMessage.style.display = 'block';
+                            document.getElementById('password').value = '';
+                            document.getElementById('password').focus();
+                        }
+                    } catch (error) {
+                        console.error('Error al validar contraseña:', error);
+                        errorMessage.textContent = 'Error al validar contraseña. Intente nuevamente.';
+                        errorMessage.style.display = 'block';
+                    } finally {
+                        // Rehabilitar botón
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Acceder';
+                    }
+                });
+            }
         }
         
-        initLogin();
-        
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const password = document.getElementById('password').value;
-            const errorMessage = document.getElementById('errorMessage');
-            const submitButton = e.target.querySelector('button[type="submit"]');
-            
-            // Deshabilitar botón mientras se valida
-            submitButton.disabled = true;
-            submitButton.textContent = 'Validando...';
-            errorMessage.style.display = 'none';
-            
-            try {
-                // Validar contraseña usando la función de Supabase
-                const esValida = await validarPasswordAdmin(password);
-                
-                if (esValida) {
-                    // Guardar autenticación en sessionStorage (se cierra al cerrar la pestaña)
-                    sessionStorage.setItem('adminAuthenticated', 'true');
-                    sessionStorage.setItem('adminAuthTime', Date.now().toString());
-                    window.location.href = 'admin.html';
-                } else {
-                    errorMessage.style.display = 'block';
-                    document.getElementById('password').value = '';
-                    document.getElementById('password').focus();
-                }
-            } catch (error) {
-                console.error('Error al validar contraseña:', error);
-                errorMessage.textContent = 'Error al validar contraseña. Intente nuevamente.';
-                errorMessage.style.display = 'block';
-            } finally {
-                // Rehabilitar botón
-                submitButton.disabled = false;
-                submitButton.textContent = 'Acceder';
-            }
-        });
+        // Inicializar cuando la página esté completamente cargada
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initLogin);
+        } else {
+            initLogin();
+        }
     </script>
 </body>
 </html>

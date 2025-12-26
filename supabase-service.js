@@ -528,15 +528,15 @@ async function validarPasswordAdmin(password) {
             .select('password_hash')
             .order('id', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
         
-        if (error && error.code !== 'PGRST116') {
+        if (error) {
             console.error('Error al validar contraseña:', error);
             return false;
         }
         
-        if (!data) {
-            console.error('No se encontró hash de contraseña en la base de datos');
+        if (!data || !data.password_hash) {
+            console.error('No se encontró hash de contraseña en la base de datos. Por favor, ejecuta el SQL de configuración.');
             return false;
         }
         
