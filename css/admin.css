@@ -1062,3 +1062,36 @@ body {
 .menu-config-mobile-dropdown {
     display: none;
 }
+
+/* Indicador de suma de ponderaciones */
+.suma-ponderaciones {
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1em;
+    color: #374151;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.suma-ponderaciones.suma-completa {
+    background: #d1fae5;
+    border-color: #10b981;
+    color: #065f46;
+}
+
+.suma-ponderaciones.suma-excedida {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #991b1b;
+}
+
+.ponderacion-input:disabled {
+    background-color: #f3f4f6;
+    color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
+}

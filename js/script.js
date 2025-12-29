@@ -247,15 +247,10 @@ function validarPasoActual() {
     switch(pasoActual) {
         case 1:
             const evaluador = document.getElementById('evaluador').value;
-            const fecha = document.getElementById('anioEvaluacion').value;
             const tipoProveedor = document.querySelector('input[name="tipoProveedor"]:checked');
             
             if (!evaluador) {
                 alert('Por favor seleccione un evaluador.');
-                return false;
-            }
-            if (!fecha) {
-                alert('Por favor seleccione una fecha de evaluación.');
                 return false;
             }
             if (!tipoProveedor) {
@@ -361,16 +356,26 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 });
 
-// Inicializar calendario (input type="date" nativo)
+// Inicializar fecha de evaluación (mostrar fecha actual)
 async function inicializarSelectorAnios(evaluaciones) {
     const anioInput = document.getElementById('anioEvaluacion');
+    const fechaTexto = document.getElementById('fechaTexto');
+    
     if (!anioInput) return;
     
-    // Establecer fecha actual por defecto
+    // Establecer fecha actual
     const hoy = new Date();
     const fechaFormato = hoy.toISOString().split('T')[0]; // YYYY-MM-DD
     anioInput.value = fechaFormato;
     anioInput.dataset.anio = hoy.getFullYear();
+    
+    // Mostrar fecha formateada en español
+    if (fechaTexto) {
+        const dia = hoy.getDate();
+        const mes = hoy.toLocaleString('es-ES', { month: 'long' });
+        const anio = hoy.getFullYear();
+        fechaTexto.textContent = `${dia} de ${mes} de ${anio}`;
+    }
 }
 
 function actualizarInformacionDesdeConfig() {
@@ -450,10 +455,7 @@ function inicializarEventos() {
         await actualizarProveedores();
     });
 
-    // Cambio de fecha (año extraído de la fecha)
-    document.getElementById('anioEvaluacion').addEventListener('change', async function() {
-        await actualizarProveedores();
-    });
+    // La fecha se establece automáticamente al cargar, no necesita evento de cambio
 
     // Cambio de tipo de proveedor
     document.querySelectorAll('input[name="tipoProveedor"]').forEach(radio => {
@@ -509,9 +511,9 @@ function inicializarEventos() {
 async function actualizarProveedores() {
     const evaluador = document.getElementById('evaluador').value;
     const tipoProveedor = document.querySelector('input[name="tipoProveedor"]:checked');
-    const anioInput = document.getElementById('anioEvaluacion');
-    const fechaSeleccionada = anioInput && anioInput.value ? new Date(anioInput.value) : null;
-    const anioEvaluacion = fechaSeleccionada ? fechaSeleccionada.getFullYear() : null;
+    // Usar siempre la fecha actual
+    const hoy = new Date();
+    const anioEvaluacion = hoy.getFullYear();
     const selectProveedor = document.getElementById('proveedor');
     
     // Limpiar opciones
@@ -520,15 +522,6 @@ async function actualizarProveedores() {
     if (!evaluador) {
         selectProveedor.innerHTML = '<option value="">-- Primero seleccione un evaluador --</option>';
         // Ocultar items y correo
-        document.getElementById('itemsSection').style.display = 'none';
-        document.getElementById('resultSection').style.display = 'none';
-        document.getElementById('correoSection').style.display = 'none';
-        document.getElementById('correoProveedor').value = '';
-        return;
-    }
-    
-    if (!anioEvaluacion || !anioInput.value) {
-        selectProveedor.innerHTML = '<option value="">-- Primero seleccione la fecha de evaluación --</option>';
         document.getElementById('itemsSection').style.display = 'none';
         document.getElementById('resultSection').style.display = 'none';
         document.getElementById('correoSection').style.display = 'none';
@@ -698,19 +691,14 @@ async function guardarEvaluacion() {
     const tipoProveedor = document.querySelector('input[name="tipoProveedor"]:checked');
     const proveedor = document.getElementById('proveedor').value;
     const correoProveedor = document.getElementById('correoProveedor').value;
-    const anioInput = document.getElementById('anioEvaluacion');
-    // Crear fecha sin problemas de zona horaria: usar la fecha seleccionada directamente
-    let fechaSeleccionada = null;
-    let anioEvaluacion = new Date().getFullYear();
-    if (anioInput && anioInput.value) {
-        // Parsear la fecha del input (formato YYYY-MM-DD) sin problemas de zona horaria
-        const [year, month, day] = anioInput.value.split('-').map(Number);
-        fechaSeleccionada = new Date(year, month - 1, day); // month - 1 porque Date usa 0-11
-        anioEvaluacion = year;
-    }
+    
+    // Usar siempre la fecha actual del día
+    const hoy = new Date();
+    const fechaSeleccionada = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const anioEvaluacion = hoy.getFullYear();
     const resultadoFinal = document.getElementById('resultadoFinal').textContent;
     
-    if (!evaluador || !tipoProveedor || !proveedor || !correoProveedor || !anioInput.value || resultadoFinal === '0%') {
+    if (!evaluador || !tipoProveedor || !proveedor || !correoProveedor || resultadoFinal === '0%') {
         alert('Por favor complete todos los campos y responda todas las preguntas.');
         return;
     }
@@ -828,11 +816,16 @@ function limpiarFormulario() {
     document.getElementById('correoSection').style.display = 'none';
     document.getElementById('correoProveedor').value = '';
     
-    // Restablecer fecha actual
+    // Restablecer fecha actual (actualizar el display)
+    const fechaTexto = document.getElementById('fechaTexto');
     const anioInput = document.getElementById('anioEvaluacion');
-    if (anioInput) {
+    if (anioInput && fechaTexto) {
         const hoy = new Date();
         anioInput.value = hoy.toISOString().split('T')[0];
+        const dia = hoy.getDate();
+        const mes = hoy.toLocaleString('es-ES', { month: 'long' });
+        const anio = hoy.getFullYear();
+        fechaTexto.textContent = `${dia} de ${mes} de ${anio}`;
     }
     
     // Volver al paso inicial

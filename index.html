@@ -128,8 +128,11 @@
 
                 <section class="form-section">
                     <h2>2. Fecha de Evaluación</h2>
-                    <input type="date" id="anioEvaluacion" required>
-                    <small>Seleccione la fecha para la cual está realizando la evaluación (esta fecha se guardará en la base de datos)</small>
+                    <div class="fecha-display" id="fechaDisplay">
+                        <span id="fechaTexto"></span>
+                    </div>
+                    <input type="hidden" id="anioEvaluacion" required>
+                    <small>La fecha de evaluación corresponde al día de hoy</small>
                 </section>
 
                 <section class="form-section">

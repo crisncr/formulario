@@ -246,6 +246,35 @@ async function inicializarFormulario() {
         itemsProducto.forEach((item, index) => {
             containerProducto.appendChild(crearEditorItem(item, index, 'producto'));
         });
+        // Inicializar estado de inputs después de cargar
+        setTimeout(() => {
+            const suma = itemsProducto.reduce((sum, item) => sum + (item.ponderacion || 0), 0);
+            const indicador = containerProducto.querySelector('.suma-ponderaciones');
+            if (!indicador) {
+                const nuevoIndicador = document.createElement('div');
+                nuevoIndicador.className = 'suma-ponderaciones';
+                nuevoIndicador.textContent = `Suma total: ${suma}%`;
+                if (suma >= 100) {
+                    nuevoIndicador.classList.add('suma-completa');
+                }
+                containerProducto.insertBefore(nuevoIndicador, containerProducto.firstChild);
+            }
+            // Inicializar estado de inputs: si suma es 100%, habilitar solo el primero
+            if (suma >= 100) {
+                const inputs = containerProducto.querySelectorAll('.ponderacion-input');
+                inputs.forEach((input, index) => {
+                    if (index === 0) {
+                        // Habilitar el primer input
+                        input.disabled = false;
+                        input.title = 'Edita este valor. Si lo reduces, se habilitarán los demás.';
+                    } else {
+                        // Deshabilitar los demás
+                        input.disabled = true;
+                        input.title = 'La suma es 100%. Haz clic en otro input para editarlo.';
+                    }
+                });
+            }
+        }, 200);
     }
 
     // Cargar ítems de SERVICIO
@@ -256,6 +285,35 @@ async function inicializarFormulario() {
         itemsServicio.forEach((item, index) => {
             containerServicio.appendChild(crearEditorItem(item, index, 'servicio'));
         });
+        // Inicializar estado de inputs después de cargar
+        setTimeout(() => {
+            const suma = itemsServicio.reduce((sum, item) => sum + (item.ponderacion || 0), 0);
+            const indicador = containerServicio.querySelector('.suma-ponderaciones');
+            if (!indicador) {
+                const nuevoIndicador = document.createElement('div');
+                nuevoIndicador.className = 'suma-ponderaciones';
+                nuevoIndicador.textContent = `Suma total: ${suma}%`;
+                if (suma >= 100) {
+                    nuevoIndicador.classList.add('suma-completa');
+                }
+                containerServicio.insertBefore(nuevoIndicador, containerServicio.firstChild);
+            }
+            // Inicializar estado de inputs: si suma es 100%, habilitar solo el primero
+            if (suma >= 100) {
+                const inputs = containerServicio.querySelectorAll('.ponderacion-input');
+                inputs.forEach((input, index) => {
+                    if (index === 0) {
+                        // Habilitar el primer input
+                        input.disabled = false;
+                        input.title = 'Edita este valor. Si lo reduces, se habilitarán los demás.';
+                    } else {
+                        // Deshabilitar los demás
+                        input.disabled = true;
+                        input.title = 'La suma es 100%. Haz clic en otro input para editarlo.';
+                    }
+                });
+            }
+        }, 200);
     }
 
     // Inicializar evaluadores, proveedores y asignaciones en paralelo para mayor velocidad
@@ -317,9 +375,117 @@ function crearEditorItem(item, index, tipo) {
     ponderacionInput.min = 0;
     ponderacionInput.max = 100;
 
+    // Función para calcular la suma actual de ponderaciones
+    function calcularSumaPonderaciones(tipo) {
+        const items = tipo === 'producto' ? configuracion.itemsProducto : configuracion.itemsServicio;
+        return items.reduce((sum, item) => sum + (item.ponderacion || 0), 0);
+    }
+
+    // Función para actualizar el estado de los inputs según la suma
+    function actualizarEstadoInputs(tipo, inputActivo = null) {
+        const suma = calcularSumaPonderaciones(tipo);
+        const container = tipo === 'producto' 
+            ? document.getElementById('itemsProductoContainer')
+            : document.getElementById('itemsServicioContainer');
+        
+        if (!container) return;
+        
+        const inputs = container.querySelectorAll('.ponderacion-input');
+        const sumaIndicador = container.querySelector('.suma-ponderaciones');
+        
+        // Actualizar o crear indicador de suma
+        let indicador = sumaIndicador;
+        if (!indicador) {
+            indicador = document.createElement('div');
+            indicador.className = 'suma-ponderaciones';
+            container.insertBefore(indicador, container.firstChild);
+        }
+        
+        indicador.textContent = `Suma total: ${suma}%`;
+        indicador.className = 'suma-ponderaciones';
+        
+        if (suma >= 100) {
+            indicador.classList.add('suma-completa');
+            indicador.classList.remove('suma-excedida');
+            // Si la suma es 100%, deshabilitar todos excepto el input activo
+            inputs.forEach(input => {
+                if (input === inputActivo) {
+                    input.disabled = false;
+                    input.title = 'Edita este valor. Si lo reduces, se habilitarán los demás.';
+                } else {
+                    input.disabled = true;
+                    input.title = 'La suma es 100%. Haz clic en otro input para editarlo.';
+                }
+            });
+        } else {
+            indicador.classList.remove('suma-completa', 'suma-excedida');
+            // Si la suma es menor a 100%, habilitar todos los inputs
+            inputs.forEach(input => {
+                input.disabled = false;
+                input.title = '';
+            });
+        }
+    }
+
+    // Evento onfocus: habilitar este input y deshabilitar los demás si suma es 100%
+    ponderacionInput.onfocus = function() {
+        actualizarEstadoInputs(tipo, this);
+    };
+    
+    // Validación en tiempo real
+    ponderacionInput.oninput = function() {
+        const nuevoValor = parseInt(this.value) || 0;
+        const valorAnterior = item.ponderacion || 0;
+        const sumaActual = calcularSumaPonderaciones(tipo);
+        const sumaSinEste = sumaActual - valorAnterior;
+        const nuevaSuma = sumaSinEste + nuevoValor;
+        
+        // Si la nueva suma excede 100%, ajustar el valor
+        if (nuevaSuma > 100) {
+            const valorMaximo = 100 - sumaSinEste;
+            if (valorMaximo < 0) {
+                this.value = 0;
+                item.ponderacion = 0;
+                alert('⚠️ La suma de ponderaciones no puede exceder el 100%. Reduce otros porcentajes primero.');
+            } else {
+                this.value = valorMaximo;
+                item.ponderacion = valorMaximo;
+                alert(`⚠️ La suma no puede exceder 100%. Se ajustó a ${valorMaximo}%`);
+            }
+        } else {
+            item.ponderacion = nuevoValor;
+        }
+        
+        // Actualizar el estado de los inputs (este input sigue activo)
+        actualizarEstadoInputs(tipo, this);
+    };
+
     // Auto-save ponderación
     ponderacionInput.onchange = async function () {
-        item.ponderacion = parseInt(this.value) || 0;
+        const nuevoValor = parseInt(this.value) || 0;
+        const valorAnterior = item.ponderacion || 0;
+        const sumaActual = calcularSumaPonderaciones(tipo);
+        const sumaSinEste = sumaActual - valorAnterior;
+        const nuevaSuma = sumaSinEste + nuevoValor;
+        
+        // Validación final
+        if (nuevaSuma > 100) {
+            const valorMaximo = 100 - sumaSinEste;
+            if (valorMaximo < 0) {
+                this.value = 0;
+                item.ponderacion = 0;
+            } else {
+                this.value = valorMaximo;
+                item.ponderacion = valorMaximo;
+            }
+            alert('⚠️ La suma de ponderaciones no puede exceder el 100%.');
+        } else {
+            item.ponderacion = nuevoValor;
+        }
+        
+        // Actualizar estado (mantener este input activo si la suma sigue siendo 100%)
+        actualizarEstadoInputs(tipo, this);
+        
         console.log(`⚖️ Guardando ponderación en ítem ${tipo}...`);
         try {
             await guardarConfiguracionEvaluacion(configuracion);
@@ -327,6 +493,17 @@ function crearEditorItem(item, index, tipo) {
             console.error('Error al guardar ponderación:', e);
         }
     };
+    
+    // Inicializar estado al crear el input
+    setTimeout(() => {
+        const suma = calcularSumaPonderaciones(tipo);
+        // Si la suma es 100%, no habilitar ningún input por defecto (el usuario debe hacer clic)
+        if (suma >= 100) {
+            actualizarEstadoInputs(tipo, null);
+        } else {
+            actualizarEstadoInputs(tipo, null);
+        }
+    }, 100);
 
     const spanPorcentaje = document.createElement('span');
     spanPorcentaje.textContent = '%';
