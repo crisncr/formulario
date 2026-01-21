@@ -1,4 +1,6 @@
 // Panel de Administración - Sistema de Evaluación de Proveedores
+console.log('%c Sistema de Administración v2.1 (Excel Fix) Cargado ', 'background: #222; color: #bada55; padding: 5px; border-radius: 5px;');
+
 
 // Función helper para detectar si es móvil
 function esMovil() {
@@ -57,7 +59,23 @@ const configuracionDefault = {
 };
 
 // Cargar configuración guardada o usar valores por defecto
-let configuracion = cargarConfiguracion();
+// Cargar configuración guardada o usar valores por defecto
+let configuracion = configuracionDefault;
+
+// Iniciar carga asíncrona
+(async () => {
+    try {
+        const loadedConfig = await cargarConfiguracion();
+        if (loadedConfig) {
+            configuracion = loadedConfig;
+            console.log('✅ Configuración global actualizada:', configuracion);
+            // Si hay funciones de renderizado inicial, podrían necesitar llamarse aquí o manejar el estado reactivo
+            // Por ahora confiamos en que los clics del usuario ocurrirán después de la carga
+        }
+    } catch (err) {
+        console.error('Error actualizando configuración global:', err);
+    }
+})();
 
 async function cargarConfiguracion() {
     try {
@@ -2054,7 +2072,7 @@ function mostrarEvaluacionesPorAnio(anio, todasEvaluaciones) {
         }
         btnDescargar.innerHTML = '📥 Descargar Excel';
         btnDescargar.onclick = function () {
-            descargarEvaluacionIndividualAdmin(eval);
+            descargarEvaluacionIndividualAdmin(evalData);
         };
 
         // Botón eliminar
@@ -2222,45 +2240,96 @@ function crearYDescargarExcelAdmin(evaluaciones, titulo) {
     // Preparar datos para Excel
     const datosExcel = [];
 
-    evaluaciones.forEach(e => {
-        const tipo = e.tipo_proveedor || e.tipo || 'No especificado';
-        const items = tipo === 'PRODUCTO' ? itemsProductoAdmin : itemsServicioAdmin;
-        const fecha = e.fecha_evaluacion || e.fecha || '';
-        const evaluador = e.evaluador || 'No especificado';
-        const proveedor = e.proveedor || 'No especificado';
-        const resultado = e.resultado_final || e.resultadoFinal || 0;
-        const anio = e.anio || new Date(e.fecha || Date.now()).getFullYear();
+    evaluaciones.forEach(itemEvaluacion => {
+        // Debug data
+        console.log('Procesando para Excel:', itemEvaluacion);
+
+        // Validar que sea un objeto real y no una función (como eval) ni null
+        if (!itemEvaluacion || typeof itemEvaluacion !== 'object') {
+            console.error('[Excel] Error crítico: El ítem en la lista no es un objeto válido. Es:', typeof itemEvaluacion, itemEvaluacion);
+            return;
+        }
+
+        // Usar las propiedades mapeadas por cargarEvaluaciones (supabase-service.js)
+
+        const tipo = itemEvaluacion.tipo || itemEvaluacion.tipo_proveedor || 'No especificado';
+
+        // FIX: Usar configuracion.items... en lugar de variables globales no definidas
+        const items = tipo === 'PRODUCTO' ? configuracion.itemsProducto : configuracion.itemsServicio;
+
+        // La fecha viene mapeada como 'fecha' o 'fechaEvaluacion'
+        let fechaStr = itemEvaluacion.fecha || itemEvaluacion.fechaEvaluacion || '';
+        if (fechaStr && fechaStr.includes('T')) fechaStr = fechaStr.split('T')[0];
+
+        const evaluador = itemEvaluacion.evaluador || 'No especificado';
+        const proveedor = itemEvaluacion.proveedor || 'No especificado';
+        const correo = itemEvaluacion.correoProveedor || itemEvaluacion.correo_proveedor || 'No especificado';
+        const resultado = parseFloat(itemEvaluacion.resultadoFinal !== undefined ? itemEvaluacion.resultadoFinal : (itemEvaluacion.resultado_final || 0));
+        const anio = itemEvaluacion.anio || new Date().getFullYear();
 
         const fila = {
             'Año': anio,
-            'Fecha': fecha,
+            'Fecha': fechaStr,
             'Evaluador': evaluador,
             'Proveedor': proveedor,
-            'Correo Proveedor': e.correo_proveedor || e.correoProveedor || 'No especificado',
+            'Correo Proveedor': correo,
             'Tipo': tipo,
-            'Resultado Final (%)': parseFloat(resultado).toFixed(2)
+            'Resultado Final (%)': resultado.toFixed(2)
         };
 
-        // Agregar respuestas por ítem en orden
-        const respuestas = e.respuestas || {};
+        // FIX: Iterar sobre los ítems de la configuración (igual que PDF) para asegurar columnas consistentes
+        // Crear mapa de respuestas para búsqueda rápida
+        const respuestasMap = {};
+        const respuestas = itemEvaluacion.respuestas || [];
+
+        // Debug
+        console.log(`[Excel] Evaluacion ${itemEvaluacion.id}: Tipo=${tipo}, ItemsConfig=${items ? items.length : 0}, Respuestas=${Array.isArray(respuestas) ? respuestas.length : Object.keys(respuestas || {}).length}`);
+
         if (Array.isArray(respuestas)) {
-            // Formato nuevo (array)
-            respuestas.forEach(resp => {
-                const item = items.find(i => i.nombre === resp.item);
-                if (item) {
-                    fila[`${item.nombre} (${item.ponderacion}%)`] = resp.valor + '%';
-                }
-            });
+            respuestas.forEach(r => respuestasMap[r.item] = r.valor);
         } else if (typeof respuestas === 'object' && respuestas !== null) {
-            // Formato antiguo (objeto)
-            items.forEach(item => {
-                const respuesta = respuestas[item.nombre] || 0;
-                fila[`${item.nombre} (${item.ponderacion}%)`] = respuesta + '%';
+            Object.assign(respuestasMap, respuestas);
+        }
+
+        // Determinar qué lista de items usar
+        let itemsParaExcel = items;
+
+        // Fallback: Si no hay items de configuración, usar las llaves de las respuestas
+        if (!itemsParaExcel || itemsParaExcel.length === 0) {
+            console.warn('[Excel] Alerta: No hay items de configuración. Usando llaves de respuestas como fallback.');
+            itemsParaExcel = Object.keys(respuestasMap).map(key => ({ nombre: key, ponderacion: 0 }));
+        }
+
+        // Iterar items para llenar columnas
+        if (itemsParaExcel && Array.isArray(itemsParaExcel)) {
+            itemsParaExcel.forEach(item => {
+                // Obtener valor del mapa (usando el nombre del ítem como clave)
+                const val = respuestasMap[item.nombre];
+
+                // Clave de columna incluye ponderación para claridad
+                // Si ponderación es 0 (fallback), no mostrarla
+                const colName = item.ponderacion > 0 ? `${item.nombre} (${item.ponderacion}%)` : item.nombre;
+
+                // Escribir valor. Si existe, añadir %.
+                if (val !== undefined && val !== null) {
+                    fila[colName] = val + '%';
+                } else {
+                    // Debug si falta un valor esperado
+                    // console.log(`[Excel] Falta valor para item: ${item.nombre}`);
+                    fila[colName] = '';
+                }
             });
         }
 
         datosExcel.push(fila);
     });
+
+    // Validar si hay datos para exportar
+    if (datosExcel.length === 0) {
+        console.error('[Excel] No se generaron filas de datos válidas (posiblemente filtro de seguridad activado)');
+        alert('Error: No se pudieron generar datos para el Excel. Consulte la consola.');
+        return;
+    }
 
     // Crear libro de trabajo
     const wb = XLSX.utils.book_new();
@@ -2268,7 +2337,7 @@ function crearYDescargarExcelAdmin(evaluaciones, titulo) {
 
     // Ajustar ancho de columnas
     const colWidths = [];
-    const headers = Object.keys(datosExcel[0]);
+    const headers = Object.keys(datosExcel[0] || {});
     headers.forEach(header => {
         colWidths.push({ wch: Math.max(header.length, 20) });
     });
@@ -2771,38 +2840,27 @@ async function abrirEvaluacionAdmin(proveedor, tipo) {
             label.style.marginBottom = '8px';
             label.style.color = '#333';
 
-            const select = document.createElement('select');
-            select.className = 'admin-eval-select';
-            select.dataset.item = item.nombre;
-            select.style.width = '100%';
-            select.style.padding = '10px';
-            select.style.border = '1px solid #ddd';
-            select.style.borderRadius = '4px';
-            select.style.fontSize = '14px';
-
-            const options = [
-                { val: '', text: '-- Seleccione calificación --' },
-                { val: '100', text: '100% - Cumple Totalmente' },
-                { val: '75', text: '75% - Cumple Parcialmente' },
-                { val: '50', text: '50% - Cumple Mínimamente' },
-                { val: '25', text: '25% - No Cumple' },
-                { val: '0', text: '0% - Nulo' }
-            ];
-
-            options.forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt.val;
-                option.textContent = opt.text;
-                select.appendChild(option);
-            });
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'admin-eval-input';
+            input.dataset.item = item.nombre;
+            input.style.width = '100%';
+            input.style.padding = '10px';
+            input.style.border = '1px solid #ddd';
+            input.style.borderRadius = '4px';
+            input.style.fontSize = '14px';
+            input.min = '0';
+            input.max = '100';
+            input.step = '0.01'; // Permitir decimales
+            input.placeholder = 'Ingrese calificación (0-100)';
 
             // Set previous value if exists
             if (evaluacionesPrevias[item.nombre] !== undefined) {
-                select.value = evaluacionesPrevias[item.nombre];
+                input.value = evaluacionesPrevias[item.nombre];
             }
 
             itemDiv.appendChild(label);
-            itemDiv.appendChild(select);
+            itemDiv.appendChild(input);
             form.appendChild(itemDiv);
         });
 
@@ -2810,38 +2868,48 @@ async function abrirEvaluacionAdmin(proveedor, tipo) {
         saveBtn.disabled = false;
         saveBtn.style.opacity = '1';
 
+        // Guardar cambios
         saveBtn.onclick = async function () {
             saveBtn.disabled = true;
             saveBtn.textContent = 'Guardando...';
 
-            const selects = body.querySelectorAll('.admin-eval-select');
+            const inputs = form.querySelectorAll('.admin-eval-input');
             let successCount = 0;
             let errorCount = 0;
 
-            for (const select of selects) {
-                const itemNombre = select.dataset.item;
-                const valor = select.value;
+            for (const input of inputs) {
+                const itemNombre = input.dataset.item;
+                const valor = input.value;
 
-                if (valor !== '') {
-                    // Si tiene valor, guardar/actualizar
-                    const ok = await guardarEvaluacionAdmin(proveedor, itemNombre, parseInt(valor));
-                    if (ok) successCount++; else errorCount++;
+                if (valor === '') {
+                    // Si está vacío, intentamos eliminar la evaluación existente (reset)
+                    const deleted = await eliminarEvaluacionAdmin(proveedor, itemNombre);
+                    if (deleted) successCount++; // Contamos como éxito si se borró o no existía
                 } else {
-                    // Si está vacío, eliminar registro (resetear)
-                    const ok = await eliminarEvaluacionAdmin(proveedor, itemNombre);
-                    // No contamos eliminación como éxito/error para el alert, o podemos contarlo como éxito silencioso
-                    if (!ok) console.error(`Error al eliminar evaluación para ${itemNombre}`);
+                    // Validar rango
+                    const numVal = parseFloat(valor);
+                    if (isNaN(numVal) || numVal < 0 || numVal > 100) {
+                        alert(`El valor para "${itemNombre}" debe ser un número entre 0 y 100.`);
+                        errorCount++;
+                        continue; // Saltar este ítem
+                    }
+
+                    const saved = await guardarEvaluacionAdmin(proveedor, itemNombre, numVal); // Usar numVal
+                    if (saved) successCount++;
+                    else errorCount++;
                 }
             }
 
-            if (errorCount > 0) {
-                alert(`⚠️ Se guardaron ${successCount} ítems, pero hubo error en ${errorCount}. (Posible falta de tabla 'evaluaciones_admin')`);
-            } else {
-                alert('✅ Evaluaciones guardadas correctamente');
+            if (errorCount === 0) {
+                alert('✅ Evaluaciones guardadas correctamente.');
                 modal.style.display = 'none';
+                // Recargar asignaciones para actualizar estado
+                cargarAsignaciones();
+            } else {
+                alert(`⚠️ Se guardaron ${successCount} evaluaciones, pero hubo ${errorCount} errores.`);
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Guardar Evaluaciones';
             }
-            saveBtn.disabled = false;
-            saveBtn.textContent = 'Guardar Evaluaciones';
         };
 
     } catch (error) {

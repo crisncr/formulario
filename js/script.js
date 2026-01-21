@@ -925,7 +925,7 @@ function calcularResultado() {
             return;
         }
 
-        const porcentaje = parseInt(respuesta.value);
+        const porcentaje = parseFloat(respuesta.value);
         resultadoPonderado += (porcentaje * item.ponderacion) / 100;
     });
 
@@ -1005,7 +1005,7 @@ async function guardarEvaluacion() {
     items.forEach((item, index) => {
         const respuesta = document.querySelector(`input[name="item_${index}"]:checked`);
         if (respuesta) {
-            respuestas[item.nombre] = parseInt(respuesta.value);
+            respuestas[item.nombre] = parseFloat(respuesta.value);
         }
     });
 
