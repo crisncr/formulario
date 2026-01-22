@@ -2942,3 +2942,29 @@ async function abrirEvaluacionAdmin(proveedor, tipo) {
 }
 
 
+
+// Función para eliminar proveedor (llamada desde el botón)
+async function eliminarProveedorLocal(nombre) {
+    if (!confirm('¿Está seguro de eliminar el proveedor "' + nombre + '"?')) {
+        return;
+    }
+
+    try {
+        const resultado = await eliminarProveedor(nombre);
+        if (resultado) {
+            // Eliminar de la configuración local
+            if (configuracion.proveedores && configuracion.proveedores[nombre]) {
+                delete configuracion.proveedores[nombre];
+            }
+
+            // Recargar la lista
+            await inicializarProveedores();
+            alert('✅ Proveedor eliminado correctamente.');
+        } else {
+            alert('❌ Error al eliminar el proveedor. Verifique la consola.');
+        }
+    } catch (error) {
+        console.error('Error al eliminar proveedor:', error);
+        alert('❌ Error al eliminar el proveedor: ' + error.message);
+    }
+}
