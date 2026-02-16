@@ -2108,7 +2108,7 @@ function mostrarEvaluacionesPorAnio(anio, todasEvaluaciones) {
         }
         btnEliminar.textContent = '🗑️ Eliminar';
         btnEliminar.onclick = function () {
-            eliminarEvaluacionPorIdAdmin(eval.id);
+            eliminarEvaluacionPorIdAdmin(evalData.id);
         };
 
         botonesDiv.appendChild(btnDescargar);
