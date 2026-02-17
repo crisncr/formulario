@@ -2332,11 +2332,30 @@ function crearYDescargarExcelAdmin(evaluaciones, titulo) {
         }
 
         // Determinar qué lista de items usar
-        let itemsParaExcel = items;
+        // COPIA de los items actuales para no modificar la referencia global
+        let itemsParaExcel = items ? [...items] : [];
 
-        // Fallback: Si no hay items de configuración, usar las llaves de las respuestas
-        if (!itemsParaExcel || itemsParaExcel.length === 0) {
-            console.warn('[Excel] Alerta: No hay items de configuración. Usando llaves de respuestas como fallback.');
+        // FIX: Agregar items históricos (que ya no están en la config actual pero sí tienen respuesta)
+        // 1. Obtener nombres de items actuales
+        const nombresItemsActuales = new Set(itemsParaExcel.map(i => i.nombre));
+
+        // 2. Buscar en las respuestas llaves que no estén en items actuales
+        Object.keys(respuestasMap).forEach(key => {
+            if (!nombresItemsActuales.has(key)) {
+                // Es un ítem histórico! Lo agregamos para que salga en el Excel
+                console.log(`[Excel] Encontrado ítem histórico: "${key}" en evaluación ${itemEvaluacion.id}`);
+                itemsParaExcel.push({
+                    nombre: key,
+                    ponderacion: 0,
+                    esHistorico: true
+                });
+                nombresItemsActuales.add(key); // Evitar duplicados si la lógica se repite
+            }
+        });
+
+        // Fallback: Si después de todo no hay items (ni config ni históricos), usar las llaves
+        if (itemsParaExcel.length === 0) {
+            console.warn('[Excel] Alerta: No hay items de configuración ni históricos. Usando llaves de respuestas completas.');
             itemsParaExcel = Object.keys(respuestasMap).map(key => ({ nombre: key, ponderacion: 0 }));
         }
 
@@ -2347,15 +2366,21 @@ function crearYDescargarExcelAdmin(evaluaciones, titulo) {
                 const val = respuestasMap[item.nombre];
 
                 // Clave de columna incluye ponderación para claridad
-                // Si ponderación es 0 (fallback), no mostrarla
-                const colName = item.ponderacion > 0 ? `${item.nombre} (${item.ponderacion}%)` : item.nombre;
+                // Si es histórico, indicarlo
+                let colName = item.nombre;
+
+                if (item.esHistorico) {
+                    colName = `${item.nombre} (Histórico)`;
+                } else if (item.ponderacion > 0) {
+                    colName = `${item.nombre} (${item.ponderacion}%)`;
+                }
 
                 // Escribir valor. Si existe, añadir %.
                 if (val !== undefined && val !== null) {
                     fila[colName] = val + '%';
                 } else {
-                    // Debug si falta un valor esperado
-                    // console.log(`[Excel] Falta valor para item: ${item.nombre}`);
+                    // Si es histórico y no tiene valor es raro (porque lo sacamos de las respuestas), 
+                    // pero si es un item nuevo de la config que esta evaluación vieja no respondió, queda vacío.
                     fila[colName] = '';
                 }
             });
