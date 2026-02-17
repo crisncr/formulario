@@ -2366,12 +2366,22 @@ function crearYDescargarExcelAdmin(evaluaciones, titulo) {
                 const val = respuestasMap[item.nombre];
 
                 // Clave de columna incluye ponderación para claridad
-                // Si es histórico, indicarlo
+                // Si es histórico, intentar usar su ponderacion guardada si existe
                 let colName = item.nombre;
 
-                if (item.esHistorico) {
+                // Buscar si tenemos ponderacion guardada en la respuesta
+                // Necesitamos el objeto completo de respuesta, no solo el valor
+                const respObj = (itemEvaluacion.respuestas || []).find(r => r.item === item.nombre);
+                const ponderacionGuardada = respObj ? respObj.ponderacion : null;
+
+                if (ponderacionGuardada !== undefined && ponderacionGuardada !== null) {
+                    // Yuli: Usar ponderacion histórica si existe
+                    colName = `${item.nombre} (${ponderacionGuardada}%)`;
+                } else if (item.esHistorico) {
+                    // Fallback para datos muy viejos sin ponderacion guardada
                     colName = `${item.nombre} (Histórico)`;
                 } else if (item.ponderacion > 0) {
+                    // Item actual normal
                     colName = `${item.nombre} (${item.ponderacion}%)`;
                 }
 

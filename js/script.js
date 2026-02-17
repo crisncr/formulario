@@ -999,24 +999,20 @@ async function guardarEvaluacion() {
         return;
     }
 
+    // Guardar en Supabase (usando la función de supabase-service.js)
+    // Convertir respuestas a formato array INTELIGENTE: incluyen ponderacion
     const items = tipoProveedor.value === 'PRODUCTO' ? itemsProducto : itemsServicio;
-    const respuestas = {};
+    const respuestasArray = [];
 
     items.forEach((item, index) => {
         const respuesta = document.querySelector(`input[name="item_${index}"]:checked`);
         if (respuesta) {
-            respuestas[item.nombre] = parseFloat(respuesta.value);
+            respuestasArray.push({
+                item: item.nombre,
+                valor: parseFloat(respuesta.value),
+                ponderacion: item.ponderacion // Guardamos la ponderacion HISTÓRICA
+            });
         }
-    });
-
-    // Guardar en Supabase (usando la función de supabase-service.js)
-    // Convertir respuestas a formato array para Supabase
-    const respuestasArray = [];
-    Object.keys(respuestas).forEach(itemNombre => {
-        respuestasArray.push({
-            item: itemNombre,
-            valor: respuestas[itemNombre]
-        });
     });
 
     // Usar la fecha seleccionada en el calendario para fecha_evaluacion
