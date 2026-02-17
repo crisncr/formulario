@@ -202,8 +202,53 @@ async function generarPDFIndividual(evaluacion) {
         const doc = new jsPDF();
 
         // Cargar items según el tipo
+        // Cargar items según el tipo
         const tipo = evaluacion.tipo_proveedor || evaluacion.tipo || 'PRODUCTO';
-        const items = tipo === 'PRODUCTO' ? itemsProductoPDF : itemsServicioPDF;
+        const itemsBase = tipo === 'PRODUCTO' ? itemsProductoPDF : itemsServicioPDF;
+
+        // Clonar items para no modificar los globales y preparar lista para este PDF
+        let items = itemsBase.map(i => ({ ...i }));
+
+        // Mapa para verificar existencia rápida y actualizar
+        const itemsMap = {};
+        items.forEach(i => itemsMap[i.nombre] = i);
+
+        // Procesar respuestas para: 
+        // 1. Recuperar ponderación histórica (si se guardó)
+        // 2. Agregar items que ya no están en la configuración (históricos)
+        const respuestasRaw = evaluacion.respuestas || [];
+        const respuestasArray = Array.isArray(respuestasRaw) ? respuestasRaw : [];
+
+        // Si es objeto antiguo, convertir a array
+        if (!Array.isArray(respuestasRaw) && respuestasRaw) {
+            Object.keys(respuestasRaw).forEach(k => {
+                respuestasArray.push({ item: k, valor: respuestasRaw[k] });
+            });
+        }
+
+        respuestasArray.forEach(resp => {
+            const nombre = resp.item;
+            const ponderacionGuardada = resp.ponderacion;
+
+            if (itemsMap[nombre]) {
+                // El item existe en la configuración actual.
+                // Si tenemos una ponderación guardada específica para esta evaluación, la usamos
+                // para respetar la historia (ej: si antes valía 20% y ahora 10%)
+                if (ponderacionGuardada !== undefined && ponderacionGuardada !== null) {
+                    itemsMap[nombre].ponderacion = ponderacionGuardada;
+                }
+            } else {
+                // El item NO existe en la configuración actual (fue eliminado).
+                // Lo agregamos al final para que aparezca en el PDF.
+                const nuevoItem = {
+                    nombre: nombre,
+                    ponderacion: ponderacionGuardada || 0, // Si no tiene ponderación guardada, asumimos 0
+                    esHistorico: true
+                };
+                items.push(nuevoItem);
+                itemsMap[nombre] = nuevoItem; // Registrar para no duplicar
+            }
+        });
 
         // Obtener datos de la evaluación
         const proveedor = evaluacion.proveedor || 'No especificado';
@@ -432,6 +477,10 @@ async function generarPDFIndividual(evaluacion) {
 
             // Capitalizar primera letra
             conceptoGeneral = conceptoGeneral.charAt(0).toUpperCase() + conceptoGeneral.slice(1).toLowerCase();
+
+            // Si es histórico y no tiene ponderación, o es explícitamente histórico, 
+            // no cambiamos el nombre para no ensuciar el PDF, ya que el usuario pidió "respetar orden" y "hacerlo bien".
+            // Simplemente se mostrará en la lista.
 
             const nombreItem = `${index + 1}-${conceptoGeneral}`;
             const lineasNombre = doc.splitTextToSize(nombreItem, anchoCol1 - 4);
